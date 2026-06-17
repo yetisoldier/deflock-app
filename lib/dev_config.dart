@@ -112,7 +112,14 @@ const int kDataRefreshIntervalSeconds = 60; // Refresh cached data after this ma
 
 // Follow-me mode smooth transitions
 const Duration kFollowMeAnimationDuration = Duration(milliseconds: 600);
+const Duration kFollowMeMinAnimationInterval = Duration(milliseconds: 850);
 const double kMinSpeedForRotationMps = 1.0; // Minimum speed (m/s) to apply rotation
+const double kFollowMeJitterFloorMeters = 2.5; // Ignore smaller GPS wobble while following
+const double kFollowMeSnapDistanceMeters = 80.0; // Snap to large position jumps
+const double kFollowMeSlowAlpha = 0.28; // More smoothing at walking/idle speeds
+const double kFollowMeCityDrivingAlpha = 0.55;
+const double kFollowMeFastDrivingAlpha = 0.78;
+const double kFollowMeHeadingAlpha = 0.28;
 
 // Sheet content configuration
 const double kMaxTagListHeightRatioPortrait = 0.3; // Maximum height for tag lists in portrait mode

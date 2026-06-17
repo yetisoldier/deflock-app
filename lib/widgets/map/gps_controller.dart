@@ -23,6 +23,9 @@ class GpsController {
 
   // Location state
   LatLng? _currentLocation;
+  LatLng? _smoothedFollowLocation;
+  double? _smoothedRotation;
+  DateTime? _lastFollowAnimationAt;
   bool _hasLocation = false;
 
   // Callbacks - set during initialization
@@ -80,6 +83,12 @@ class GpsController {
     required FollowMeMode oldMode,
   }) {
     debugPrint('[GpsController] Follow-me mode changed: $oldMode → $newMode');
+
+    if (newMode == FollowMeMode.off) {
+      _smoothedFollowLocation = null;
+      _smoothedRotation = null;
+      _lastFollowAnimationAt = null;
+    }
 
     // Restart position stream with new frequency settings
     _restartPositionStream();
@@ -260,6 +269,10 @@ class GpsController {
     if (followMeMode == FollowMeMode.off || _mapController == null) {
       return;
     }
+
+    final smoothLocation = _smoothFollowLocation(position, location);
+    if (smoothLocation == null) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         if (_isUserInteracting?.call() == true) return;
@@ -267,7 +280,7 @@ class GpsController {
         if (followMeMode == FollowMeMode.follow) {
           // Follow position, preserve rotation
           _mapController!.animateTo(
-            dest: location,
+            dest: smoothLocation,
             zoom: _mapController!.mapController.camera.zoom,
             rotation: _mapController!.mapController.camera.rotation,
             duration: kFollowMeAnimationDuration,
@@ -284,11 +297,11 @@ class GpsController {
               speed >= kMinSpeedForRotationMps &&
               !heading.isNaN;
           final rotation = shouldRotate
-              ? -heading
+              ? _smoothRotation(-heading)
               : _mapController!.mapController.camera.rotation;
 
           _mapController!.animateTo(
-            dest: location,
+            dest: smoothLocation,
             zoom: _mapController!.mapController.camera.zoom,
             rotation: rotation,
             duration: kFollowMeAnimationDuration,
@@ -302,6 +315,72 @@ class GpsController {
         debugPrint('[GpsController] Map animation error: $e');
       }
     });
+  }
+
+  LatLng? _smoothFollowLocation(Position position, LatLng location) {
+    final previous = _smoothedFollowLocation;
+    if (previous == null) {
+      _smoothedFollowLocation = location;
+      _lastFollowAnimationAt = DateTime.now();
+      return location;
+    }
+
+    const distance = Distance();
+    final moveMeters = distance(previous, location);
+    final now = DateTime.now();
+    final timeSinceLast = now.difference(
+      _lastFollowAnimationAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+    );
+    final isLargeCorrection = moveMeters >= kFollowMeSnapDistanceMeters;
+
+    if (!isLargeCorrection &&
+        moveMeters < kFollowMeJitterFloorMeters &&
+        timeSinceLast < kFollowMeMinAnimationInterval) {
+      return null;
+    }
+
+    final alpha = _positionSmoothingAlpha(position, moveMeters);
+    final smoothed = isLargeCorrection
+        ? location
+        : LatLng(
+            previous.latitude +
+                ((location.latitude - previous.latitude) * alpha),
+            previous.longitude +
+                ((location.longitude - previous.longitude) * alpha),
+          );
+
+    _smoothedFollowLocation = smoothed;
+    _lastFollowAnimationAt = now;
+    return smoothed;
+  }
+
+  double _positionSmoothingAlpha(Position position, double moveMeters) {
+    final speed = position.speed;
+    if (moveMeters >= 25.0) return kFollowMeFastDrivingAlpha;
+    if (speed.isNaN) return kFollowMeSlowAlpha;
+    if (speed >= 12.0) return kFollowMeFastDrivingAlpha;
+    if (speed >= 4.0) return kFollowMeCityDrivingAlpha;
+    return kFollowMeSlowAlpha;
+  }
+
+  double _smoothRotation(double targetRotation) {
+    final previous = _smoothedRotation;
+    if (previous == null) {
+      _smoothedRotation = targetRotation;
+      return targetRotation;
+    }
+
+    final delta = _shortestAngleDelta(previous, targetRotation);
+    final smoothed = previous + (delta * kFollowMeHeadingAlpha);
+    _smoothedRotation = smoothed;
+    return smoothed;
+  }
+
+  double _shortestAngleDelta(double from, double to) {
+    var delta = (to - from) % 360.0;
+    if (delta > 180.0) delta -= 360.0;
+    if (delta < -180.0) delta += 360.0;
+    return delta;
   }
 
   /// Handle initial animation when follow-me mode is enabled
