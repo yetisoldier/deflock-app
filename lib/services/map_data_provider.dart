@@ -57,9 +57,11 @@ class MapDataProvider {
     int maxTries = 3,
   }) async {
     if (AppState.instance.offlineMode) {
-      throw OfflineModeException("Cannot fetch remote nodes for offline area download in offline mode.");
+      throw OfflineModeException(
+        "Cannot fetch remote nodes for offline area download in offline mode.",
+      );
     }
-    
+
     // For downloads, always fetch fresh data (don't use cache)
     return _nodeDataManager.fetchWithSplitting(bounds, profiles);
   }
@@ -76,7 +78,9 @@ class MapDataProvider {
     // Explicitly remote
     if (source == MapSource.remote) {
       if (offline) {
-        throw OfflineModeException("Cannot fetch remote tiles in offline mode.");
+        throw OfflineModeException(
+          "Cannot fetch remote tiles in offline mode.",
+        );
       }
       return _fetchRemoteTileFromCurrentProvider(z, x, y);
     }
@@ -93,7 +97,9 @@ class MapDataProvider {
       if (!offline) {
         return _fetchRemoteTileFromCurrentProvider(z, x, y);
       } else {
-        throw OfflineModeException("Tile $z/$x/$y not found in offline areas and offline mode is enabled.");
+        throw OfflineModeException(
+          "Tile $z/$x/$y not found in offline areas and offline mode is enabled.",
+        );
       }
     }
   }
@@ -101,7 +107,11 @@ class MapDataProvider {
   /// Fetch remote tile using current provider from AppState.
   /// Only used by offline area downloader — the main tile pipeline now goes
   /// through NetworkTileProvider (see DeflockTileProvider).
-  Future<List<int>> _fetchRemoteTileFromCurrentProvider(int z, int x, int y) async {
+  Future<List<int>> _fetchRemoteTileFromCurrentProvider(
+    int z,
+    int x,
+    int y,
+  ) async {
     final appState = AppState.instance;
     final selectedTileType = appState.selectedTileType;
     final selectedProvider = appState.selectedTileProvider;
@@ -110,7 +120,12 @@ class MapDataProvider {
       throw Exception('No tile provider selected - this should never happen');
     }
 
-    final tileUrl = selectedTileType.getTileUrl(z, x, y, apiKey: selectedProvider.apiKey);
+    final tileUrl = selectedTileType.getTileUrl(
+      z,
+      x,
+      y,
+      apiKey: selectedProvider.apiKey,
+    );
     final resp = await _httpClient.get(Uri.parse(tileUrl));
     if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
       return resp.bodyBytes;
@@ -133,6 +148,9 @@ class MapDataProvider {
     _nodeDataManager.removeNodeById(nodeId);
   }
 
+  /// Snapshot of all currently cached nodes.
+  List<OsmNode> get allCachedNodes => NodeSpatialCache().allNodes;
+
   /// Clear cache (when profiles change)
   void clearCache() {
     _nodeDataManager.clearCache();
@@ -154,12 +172,23 @@ class MapDataProvider {
   /// NodeCache compatibility methods for upload queue
   /// These all delegate to the singleton cache to ensure consistency
   OsmNode? getNodeById(int nodeId) => NodeSpatialCache().getNodeById(nodeId);
-  void removePendingEditMarker(int nodeId) => NodeSpatialCache().removePendingEditMarker(nodeId);
-  void removePendingDeletionMarker(int nodeId) => NodeSpatialCache().removePendingDeletionMarker(nodeId);
-  void removeTempNodeById(int tempNodeId) => NodeSpatialCache().removeTempNodeById(tempNodeId);
-  List<OsmNode> findNodesWithinDistance(LatLng coord, double distanceMeters, {int? excludeNodeId}) => 
-      NodeSpatialCache().findNodesWithinDistance(coord, distanceMeters, excludeNodeId: excludeNodeId);
+  void removePendingEditMarker(int nodeId) =>
+      NodeSpatialCache().removePendingEditMarker(nodeId);
+  void removePendingDeletionMarker(int nodeId) =>
+      NodeSpatialCache().removePendingDeletionMarker(nodeId);
+  void removeTempNodeById(int tempNodeId) =>
+      NodeSpatialCache().removeTempNodeById(tempNodeId);
+  List<OsmNode> findNodesWithinDistance(
+    LatLng coord,
+    double distanceMeters, {
+    int? excludeNodeId,
+  }) => NodeSpatialCache().findNodesWithinDistance(
+    coord,
+    distanceMeters,
+    excludeNodeId: excludeNodeId,
+  );
 
   /// Check if we have good cache coverage for the given area (prevents submission in uncovered areas)
-  bool hasGoodCoverageFor(LatLngBounds bounds) => NodeSpatialCache().hasDataFor(bounds);
+  bool hasGoodCoverageFor(LatLngBounds bounds) =>
+      NodeSpatialCache().hasDataFor(bounds);
 }

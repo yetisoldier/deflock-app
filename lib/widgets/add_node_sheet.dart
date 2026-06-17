@@ -43,13 +43,14 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
   }
 
   Future<void> _checkTutorialStatus() async {
-    final hasCompleted = await ChangelogService().hasCompletedPositioningTutorial();
+    final hasCompleted = await ChangelogService()
+        .hasCompletedPositioningTutorial();
     if (mounted) {
       setState(() {
         _showTutorial = !hasCompleted;
         _isCheckingTutorial = false;
       });
-      
+
       // If tutorial should be shown, register callback with AppState
       if (_showTutorial) {
         final appState = context.read<AppState>();
@@ -70,7 +71,7 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
   void dispose() {
     // Remove listener
     NodeDataManager().removeListener(_onCacheUpdated);
-    
+
     // Clear tutorial callback when widget is disposed
     if (_showTutorial) {
       try {
@@ -82,11 +83,19 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
     super.dispose();
   }
 
-  void _checkProximityAndCommit(BuildContext context, AppState appState, LocalizationService locService) {
+  void _checkProximityAndCommit(
+    BuildContext context,
+    AppState appState,
+    LocalizationService locService,
+  ) {
     _checkSubmissionGuideAndProceed(context, appState, locService);
   }
 
-  void _checkSubmissionGuideAndProceed(BuildContext context, AppState appState, LocalizationService locService) async {
+  void _checkSubmissionGuideAndProceed(
+    BuildContext context,
+    AppState appState,
+    LocalizationService locService,
+  ) async {
     // Check if user has seen the submission guide
     final hasSeenGuide = await ChangelogService().hasSeenSubmissionGuide();
     if (!context.mounted) return;
@@ -110,19 +119,23 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
     _checkProximityOnly(context, appState, locService);
   }
 
-  void _checkProximityOnly(BuildContext context, AppState appState, LocalizationService locService) {
+  void _checkProximityOnly(
+    BuildContext context,
+    AppState appState,
+    LocalizationService locService,
+  ) {
     // Only check proximity if we have a target location
     if (widget.session.target == null) {
       _commitWithoutCheck(context, appState, locService);
       return;
     }
-    
+
     // Check for nearby nodes within the configured distance
     final nearbyNodes = MapDataProvider().findNodesWithinDistance(
-      widget.session.target!, 
+      widget.session.target!,
       kNodeProximityWarningDistance,
     );
-    
+
     if (nearbyNodes.isNotEmpty) {
       // Show proximity warning dialog
       showDialog<void>(
@@ -145,7 +158,11 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
     }
   }
 
-  void _commitWithoutCheck(BuildContext context, AppState appState, LocalizationService locService) {
+  void _commitWithoutCheck(
+    BuildContext context,
+    AppState appState,
+    LocalizationService locService,
+  ) {
     appState.commitSession();
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -153,7 +170,13 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
     );
   }
 
-  Widget _buildProfileDropdown(BuildContext context, AppState appState, AddNodeSession session, List<NodeProfile> submittableProfiles, LocalizationService locService) {
+  Widget _buildProfileDropdown(
+    BuildContext context,
+    AppState appState,
+    AddNodeSession session,
+    List<NodeProfile> submittableProfiles,
+    LocalizationService locService,
+  ) {
     return PopupMenuButton<String>(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -196,9 +219,7 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
               const SizedBox(width: 8),
               Text(
                 locService.t('profiles.getMore'),
-                style: const TextStyle(
-                  fontStyle: FontStyle.italic,
-                ),
+                style: const TextStyle(fontStyle: FontStyle.italic),
               ),
             ],
           ),
@@ -209,7 +230,9 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
           _openIdentifyWebsite(context);
         } else if (value.startsWith('profile_')) {
           final profileId = value.substring(8); // Remove 'profile_' prefix
-          final profile = submittableProfiles.firstWhere((p) => p.id == profileId);
+          final profile = submittableProfiles.firstWhere(
+            (p) => p.id == profileId,
+          );
           appState.updateSession(profile: profile);
         }
       },
@@ -218,7 +241,7 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
 
   void _openIdentifyWebsite(BuildContext context) async {
     const url = 'https://deflock.me/identify';
-    
+
     try {
       final uri = Uri.parse(url);
       if (await canLaunchUrl(uri)) {
@@ -240,25 +263,28 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
 
   void _showErrorSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
-  Widget _buildDirectionControls(BuildContext context, AppState appState, AddNodeSession session, LocalizationService locService) {
-    final requiresDirection = session.profile != null && session.profile!.requiresDirection;
+  Widget _buildDirectionControls(
+    BuildContext context,
+    AppState appState,
+    AddNodeSession session,
+    LocalizationService locService,
+  ) {
+    final requiresDirection =
+        session.profile != null && session.profile!.requiresDirection;
     final is360Fov = session.profile?.fov == 360;
     final enableDirectionControls = requiresDirection && !is360Fov;
-    
+
     // Force direction to 0 when FOV is 360 (omnidirectional)
     if (is360Fov && session.directionDegrees != 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         appState.updateSession(directionDeg: 0);
       });
     }
-    
+
     // Format direction display text with bold for current direction
     String directionsText = '';
     if (requiresDirection) {
@@ -277,26 +303,35 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
     return Column(
       children: [
         ListTile(
-          title: requiresDirection 
-            ? RichText(
-                text: TextSpan(
-                  style: Theme.of(context).textTheme.titleMedium,
-                  children: [
-                    const TextSpan(text: 'Directions: '),
-                    if (directionsText.isNotEmpty)
-                      ...directionsText.split('**').asMap().entries.map((entry) {
-                        final isEven = entry.key % 2 == 0;
-                        return TextSpan(
-                          text: entry.value,
-                          style: TextStyle(
-                            fontWeight: isEven ? FontWeight.normal : FontWeight.bold,
-                          ),
-                        );
-                      }),
-                  ],
+          title: requiresDirection
+              ? RichText(
+                  text: TextSpan(
+                    style: Theme.of(context).textTheme.titleMedium,
+                    children: [
+                      const TextSpan(text: 'Directions: '),
+                      if (directionsText.isNotEmpty)
+                        ...directionsText.split('**').asMap().entries.map((
+                          entry,
+                        ) {
+                          final isEven = entry.key % 2 == 0;
+                          return TextSpan(
+                            text: entry.value,
+                            style: TextStyle(
+                              fontWeight: isEven
+                                  ? FontWeight.normal
+                                  : FontWeight.bold,
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                )
+              : Text(
+                  locService.t(
+                    'addNode.direction',
+                    params: [session.directionDegrees.round().toString()],
+                  ),
                 ),
-              )
-            : Text(locService.t('addNode.direction', params: [session.directionDegrees.round().toString()])),
           subtitle: Row(
             children: [
               // Slider takes most of the space
@@ -307,7 +342,9 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
                   divisions: 359,
                   value: session.directionDegrees,
                   label: session.directionDegrees.round().toString(),
-                  onChanged: enableDirectionControls ? (v) => appState.updateSession(directionDeg: v) : null,
+                  onChanged: enableDirectionControls
+                      ? (v) => appState.updateSession(directionDeg: v)
+                      : null,
                 ),
               ),
               // Direction control buttons - always show but grey out when direction not required
@@ -315,44 +352,71 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
               // Remove button
               IconButton(
                 icon: Icon(
-                  Icons.remove, 
+                  Icons.remove,
                   size: 20,
-                  color: enableDirectionControls ? null : Theme.of(context).disabledColor,
+                  color: enableDirectionControls
+                      ? null
+                      : Theme.of(context).disabledColor,
                 ),
-                onPressed: enableDirectionControls && session.directions.length > 1 
-                    ? () => appState.removeDirection() 
+                onPressed:
+                    enableDirectionControls && session.directions.length > 1
+                    ? () => appState.removeDirection()
                     : null,
-                tooltip: requiresDirection ? 'Remove current direction' : 'Direction not required for this profile',
+                tooltip: requiresDirection
+                    ? 'Remove current direction'
+                    : 'Direction not required for this profile',
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: kDirectionButtonMinWidth, minHeight: kDirectionButtonMinHeight),
+                constraints: const BoxConstraints(
+                  minWidth: kDirectionButtonMinWidth,
+                  minHeight: kDirectionButtonMinHeight,
+                ),
               ),
               // Add button
               IconButton(
                 icon: Icon(
-                  Icons.add, 
+                  Icons.add,
                   size: 20,
-                  color: enableDirectionControls && session.directions.length < 8 ? null : Theme.of(context).disabledColor,
+                  color:
+                      enableDirectionControls && session.directions.length < 8
+                      ? null
+                      : Theme.of(context).disabledColor,
                 ),
-                onPressed: enableDirectionControls && session.directions.length < 8 ? () => appState.addDirection() : null,
-                tooltip: requiresDirection 
-                    ? (session.directions.length >= 8 ? 'Maximum 8 directions allowed' : 'Add new direction') 
+                onPressed:
+                    enableDirectionControls && session.directions.length < 8
+                    ? () => appState.addDirection()
+                    : null,
+                tooltip: requiresDirection
+                    ? (session.directions.length >= 8
+                          ? 'Maximum 8 directions allowed'
+                          : 'Add new direction')
                     : 'Direction not required for this profile',
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: kDirectionButtonMinWidth, minHeight: kDirectionButtonMinHeight),
+                constraints: const BoxConstraints(
+                  minWidth: kDirectionButtonMinWidth,
+                  minHeight: kDirectionButtonMinHeight,
+                ),
               ),
               // Cycle button
               IconButton(
                 icon: Icon(
-                  Icons.repeat, 
+                  Icons.repeat,
                   size: 20,
-                  color: enableDirectionControls ? null : Theme.of(context).disabledColor,
+                  color: enableDirectionControls
+                      ? null
+                      : Theme.of(context).disabledColor,
                 ),
-                onPressed: enableDirectionControls && session.directions.length > 1 
-                    ? () => appState.cycleDirection() 
+                onPressed:
+                    enableDirectionControls && session.directions.length > 1
+                    ? () => appState.cycleDirection()
                     : null,
-                tooltip: requiresDirection ? 'Cycle through directions' : 'Direction not required for this profile',
+                tooltip: requiresDirection
+                    ? 'Cycle through directions'
+                    : 'Direction not required for this profile',
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: kDirectionButtonMinWidth, minHeight: kDirectionButtonMinHeight),
+                constraints: const BoxConstraints(
+                  minWidth: kDirectionButtonMinWidth,
+                  minHeight: kDirectionButtonMinHeight,
+                ),
               ),
             ],
           ),
@@ -396,36 +460,46 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
         }
 
         final session = widget.session;
-        final submittableProfiles = appState.enabledProfiles.where((p) => p.isSubmittable).toList();
-        
+        final submittableProfiles = appState.enabledProfiles
+            .where((p) => p.isSubmittable)
+            .toList();
+
         // Check if we have good cache coverage around the node position
         bool hasGoodCoverage = true;
         if (session.target != null) {
           // Create a small bounds around the target position to check coverage
           const double bufferDegrees = 0.001; // ~100m buffer
           final targetBounds = LatLngBounds(
-            LatLng(session.target!.latitude - bufferDegrees, session.target!.longitude - bufferDegrees),
-            LatLng(session.target!.latitude + bufferDegrees, session.target!.longitude + bufferDegrees),
+            LatLng(
+              session.target!.latitude - bufferDegrees,
+              session.target!.longitude - bufferDegrees,
+            ),
+            LatLng(
+              session.target!.latitude + bufferDegrees,
+              session.target!.longitude + bufferDegrees,
+            ),
           );
           hasGoodCoverage = MapDataProvider().hasGoodCoverageFor(targetBounds);
-          
+
           // If strict coverage check fails, fall back to checking if we have any nodes nearby
           // This handles the timing issue where cache might not be marked as "covered" yet
           if (!hasGoodCoverage) {
             final nearbyNodes = MapDataProvider().findNodesWithinDistance(
-              session.target!, 
+              session.target!,
               200.0, // 200m radius - if we have nodes nearby, we likely have good data
             );
             hasGoodCoverage = nearbyNodes.isNotEmpty;
           }
         }
-        
-        final allowSubmit = appState.isLoggedIn && 
-            submittableProfiles.isNotEmpty && 
-            session.profile != null && 
+
+        final allowSubmit =
+            appState.isLoggedIn &&
+            submittableProfiles.isNotEmpty &&
+            session.profile != null &&
             session.profile!.isSubmittable &&
+            session.hasRequiredLocationAdjustment &&
             hasGoodCoverage;
-        
+
         void navigateToLogin() {
           Navigator.pushNamed(context, '/settings/osm-account');
         }
@@ -458,151 +532,220 @@ class _AddNodeSheetState extends State<AddNodeSheet> {
           fit: StackFit.loose,
           children: [
             Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade400,
-                  borderRadius: BorderRadius.circular(2),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: Text(locService.t('addNode.profile')),
-                trailing: _buildProfileDropdown(context, appState, session, submittableProfiles, locService),
-              ),
-              // Direction controls
-              _buildDirectionControls(context, appState, session, locService),
+                const SizedBox(height: 16),
+                ListTile(
+                  title: Text(locService.t('addNode.profile')),
+                  trailing: _buildProfileDropdown(
+                    context,
+                    appState,
+                    session,
+                    submittableProfiles,
+                    locService,
+                  ),
+                ),
+                // Direction controls
+                _buildDirectionControls(context, appState, session, locService),
 
-              if (!appState.isLoggedIn)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.red, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          locService.t('addNode.mustBeLoggedIn'),
-                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                if (!appState.isLoggedIn)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.red,
+                          size: 20,
                         ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (submittableProfiles.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.red, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          locService.t('addNode.enableSubmittableProfile'),
-                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            locService.t('addNode.mustBeLoggedIn'),
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (session.profile == null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          locService.t('addNode.profileRequired'),
-                          style: const TextStyle(color: Colors.orange, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (!session.profile!.isSubmittable)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.orange, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          locService.t('addNode.profileViewOnlyWarning'),
-                          style: const TextStyle(color: Colors.orange, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (!hasGoodCoverage)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.cloud_download, color: Colors.blue, size: 20),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          locService.t('addNode.loadingAreaData'),
-                          style: const TextStyle(color: Colors.blue, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: session.profile != null ? openRefineTags : null, // Disabled when no profile selected
-                    icon: const Icon(Icons.tune),
-                    label: Text(locService.t('addNode.refineTags')),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: cancel,
-                        child: Text(locService.cancel),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: !appState.isLoggedIn ? navigateToLogin : (allowSubmit ? commit : null),
-                        child: Text(!appState.isLoggedIn ? locService.t('actions.logIn') : locService.t('actions.submit')),
-                      ),
+                  )
+                else if (submittableProfiles.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            locService.t('addNode.enableSubmittableProfile'),
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  )
+                else if (session.profile == null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            locService.t('addNode.profileRequired'),
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (!session.profile!.isSubmittable)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            locService.t('addNode.profileViewOnlyWarning'),
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (!session.hasRequiredLocationAdjustment)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.open_with,
+                          color: Colors.orange,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Move the map so the marker is on the roadside camera, not the phone location.',
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (!hasGoodCoverage)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.cloud_download,
+                          color: Colors.blue,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            locService.t('addNode.loadingAreaData'),
+                            style: const TextStyle(
+                              color: Colors.blue,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: session.profile != null
+                          ? openRefineTags
+                          : null, // Disabled when no profile selected
+                      icon: const Icon(Icons.tune),
+                      label: Text(locService.t('addNode.refineTags')),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: cancel,
+                          child: Text(locService.cancel),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: !appState.isLoggedIn
+                              ? navigateToLogin
+                              : (allowSubmit ? commit : null),
+                          child: Text(
+                            !appState.isLoggedIn
+                                ? locService.t('actions.logIn')
+                                : locService.t('actions.submit'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
-            
+
             // Tutorial overlay - show only if tutorial should be shown and we're done checking
             if (!_isCheckingTutorial && _showTutorial)
-              Positioned.fill(
-                child: PositioningTutorialOverlay(),
-              ),
+              Positioned.fill(child: PositioningTutorialOverlay()),
           ],
         );
       },
     );
   }
 }
-

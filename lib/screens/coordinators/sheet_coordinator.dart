@@ -18,14 +18,14 @@ class SheetCoordinator {
   double _editSheetHeight = 0.0;
   double _tagSheetHeight = 0.0;
   double _navigationSheetHeight = 0.0;
-  
+
   // Track sheet state for auto-open logic
   bool _editSheetShown = false;
   bool _navigationSheetShown = false;
-  
+
   // Flag to prevent map bounce when transitioning from tag sheet to edit sheet
   bool _transitioningToEdit = false;
-  
+
   // Follow-me state restoration
   FollowMeMode? _followMeModeBeforeSheet;
 
@@ -49,7 +49,8 @@ class SheetCoordinator {
   /// Update sheet state tracking
   void setEditSheetShown(bool shown) => _editSheetShown = shown;
   void setNavigationSheetShown(bool shown) => _navigationSheetShown = shown;
-  void setTransitioningToEdit(bool transitioning) => _transitioningToEdit = transitioning;
+  void setTransitioningToEdit(bool transitioning) =>
+      _transitioningToEdit = transitioning;
 
   /// Open the add node sheet with validation and setup
   void openAddNodeSheet({
@@ -60,15 +61,17 @@ class SheetCoordinator {
     required VoidCallback onStateChanged,
   }) {
     final appState = context.read<AppState>();
-    
+
     // Check minimum zoom level before opening sheet
     final currentZoom = mapController.mapController.camera.zoom;
     if (currentZoom < kMinZoomForNodeEditingSheets) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            LocalizationService.instance.t('editNode.zoomInRequiredMessage', 
-              params: [kMinZoomForNodeEditingSheets.toString()])
+            LocalizationService.instance.t(
+              'editNode.zoomInRequiredMessage',
+              params: [kMinZoomForNodeEditingSheets.toString()],
+            ),
           ),
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
@@ -76,13 +79,15 @@ class SheetCoordinator {
       );
       return;
     }
-    
+
     // Check if node limit is active and warn user
     if (isNodeLimitActive) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            LocalizationService.instance.t('nodeLimitIndicator.editingDisabledMessage')
+            LocalizationService.instance.t(
+              'nodeLimitIndicator.editingDisabledMessage',
+            ),
           ),
           duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
@@ -90,18 +95,20 @@ class SheetCoordinator {
       );
       return;
     }
-    
+
     // Save current follow-me mode and disable it while sheet is open
     _followMeModeBeforeSheet = appState.followMeMode;
     appState.setFollowMeMode(FollowMeMode.off);
-    
+
     appState.startAddSession();
-    final session = appState.session!;          // guaranteed non‑null now
+    final session = appState.session!; // guaranteed non‑null now
 
     final controller = scaffoldKey.currentState!.showBottomSheet(
       (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom, // Only safe area, no keyboard
+          bottom: MediaQuery.of(
+            context,
+          ).padding.bottom, // Only safe area, no keyboard
         ),
         child: MeasuredSheet(
           onHeightChanged: (height) {
@@ -112,7 +119,7 @@ class SheetCoordinator {
         ),
       ),
     );
-    
+
     // Reset height when sheet is dismissed
     controller.closed.then((_) {
       _addSheetHeight = 0.0;
@@ -120,11 +127,54 @@ class SheetCoordinator {
 
       // Handle dismissal by canceling session if still active
       if (appState.session != null) {
-        debugPrint('[SheetCoordinator] AddNodeSheet dismissed - canceling session');
+        debugPrint(
+          '[SheetCoordinator] AddNodeSheet dismissed - canceling session',
+        );
         appState.cancelSession();
       }
-      
+
       // Restore follow-me mode that was active before sheet opened
+      _restoreFollowMeMode(appState);
+    });
+  }
+
+  /// Open the add node sheet for a session that was already created.
+  void openExistingAddNodeSheet({
+    required BuildContext context,
+    required GlobalKey<ScaffoldState> scaffoldKey,
+    required VoidCallback onStateChanged,
+  }) {
+    final appState = context.read<AppState>();
+    final session = appState.session;
+    if (session == null) return;
+
+    _followMeModeBeforeSheet = appState.followMeMode;
+    appState.setFollowMeMode(FollowMeMode.off);
+
+    final controller = scaffoldKey.currentState!.showBottomSheet(
+      (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        child: MeasuredSheet(
+          onHeightChanged: (height) {
+            _addSheetHeight = height + MediaQuery.of(context).padding.bottom;
+            onStateChanged();
+          },
+          child: AddNodeSheet(session: session),
+        ),
+      ),
+    );
+
+    controller.closed.then((_) {
+      _addSheetHeight = 0.0;
+      onStateChanged();
+
+      if (appState.session != null) {
+        debugPrint(
+          '[SheetCoordinator] AddNodeSheet dismissed - canceling session',
+        );
+        appState.cancelSession();
+      }
+
       _restoreFollowMeMode(appState);
     });
   }
@@ -137,13 +187,14 @@ class SheetCoordinator {
     required VoidCallback onStateChanged,
   }) {
     final appState = context.read<AppState>();
-    
-    // Save current follow-me mode and disable it while sheet is open  
+
+    // Save current follow-me mode and disable it while sheet is open
     _followMeModeBeforeSheet = appState.followMeMode;
     appState.setFollowMeMode(FollowMeMode.off);
-    
-    final session = appState.editSession!;     // should be non-null when this is called
-    
+
+    final session =
+        appState.editSession!; // should be non-null when this is called
+
     // Center map on the node being edited
     try {
       mapController.animateTo(
@@ -155,23 +206,31 @@ class SheetCoordinator {
     } catch (_) {
       // Map controller not ready, fallback to immediate move
       try {
-        mapController.mapController.move(session.originalNode.coord, mapController.mapController.camera.zoom);
+        mapController.mapController.move(
+          session.originalNode.coord,
+          mapController.mapController.camera.zoom,
+        );
       } catch (_) {
         // Controller really not ready, skip centering
       }
     }
-    
+
     // Set transition flag to prevent map bounce
     _transitioningToEdit = true;
-    
+
     final controller = scaffoldKey.currentState!.showBottomSheet(
       (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom,
+          bottom:
+              MediaQuery.of(context).viewInsets.bottom +
+              MediaQuery.of(context).padding.bottom,
         ),
         child: MeasuredSheet(
           onHeightChanged: (height) {
-            final fullHeight = height + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
+            final fullHeight =
+                height +
+                MediaQuery.of(context).viewInsets.bottom +
+                MediaQuery.of(context).padding.bottom;
             _editSheetHeight = fullHeight;
             onStateChanged();
           },
@@ -179,7 +238,7 @@ class SheetCoordinator {
         ),
       ),
     );
-    
+
     // Reset height and transition flag when sheet is dismissed
     controller.closed.then((_) {
       _editSheetHeight = 0.0;
@@ -188,10 +247,12 @@ class SheetCoordinator {
 
       // Handle dismissal by canceling session if still active
       if (appState.editSession != null) {
-        debugPrint('[SheetCoordinator] EditNodeSheet dismissed - canceling edit session');
+        debugPrint(
+          '[SheetCoordinator] EditNodeSheet dismissed - canceling edit session',
+        );
         appState.cancelEditSession();
       }
-      
+
       // Restore follow-me mode that was active before sheet opened
       _restoreFollowMeMode(appState);
     });
@@ -208,11 +269,16 @@ class SheetCoordinator {
     final controller = scaffoldKey.currentState!.showBottomSheet(
       (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom,
+          bottom:
+              MediaQuery.of(context).viewInsets.bottom +
+              MediaQuery.of(context).padding.bottom,
         ),
         child: MeasuredSheet(
           onHeightChanged: (height) {
-            final fullHeight = height + MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom;
+            final fullHeight =
+                height +
+                MediaQuery.of(context).viewInsets.bottom +
+                MediaQuery.of(context).padding.bottom;
             _navigationSheetHeight = fullHeight;
             onStateChanged();
           },
@@ -223,23 +289,27 @@ class SheetCoordinator {
         ),
       ),
     );
-    
+
     // Reset height when sheet is dismissed
     controller.closed.then((_) {
       _navigationSheetHeight = 0.0;
       onStateChanged();
-      
+
       // Handle different dismissal scenarios (from original HomeScreen logic)
       if (context.mounted) {
         final appState = context.read<AppState>();
-        
+
         if (appState.isSettingSecondPoint) {
           // If user dismisses sheet while setting second point, cancel everything
-          debugPrint('[SheetCoordinator] Sheet dismissed during second point selection - canceling navigation');
+          debugPrint(
+            '[SheetCoordinator] Sheet dismissed during second point selection - canceling navigation',
+          );
           appState.cancelNavigation();
         } else if (appState.isInRouteMode && appState.showingOverview) {
           // If we're in route active mode and showing overview, just hide the overview
-          debugPrint('[SheetCoordinator] Sheet dismissed during route overview - hiding overview');
+          debugPrint(
+            '[SheetCoordinator] Sheet dismissed during route overview - hiding overview',
+          );
           appState.hideRouteOverview();
         }
       }
@@ -248,14 +318,18 @@ class SheetCoordinator {
 
   /// Update tag sheet height (called externally)
   void updateTagSheetHeight(double height, VoidCallback onStateChanged) {
-    debugPrint('[SheetCoordinator] Updating tag sheet height: $_tagSheetHeight -> $height');
+    debugPrint(
+      '[SheetCoordinator] Updating tag sheet height: $_tagSheetHeight -> $height',
+    );
     _tagSheetHeight = height;
     onStateChanged();
   }
 
   /// Reset tag sheet height
   void resetTagSheetHeight(VoidCallback onStateChanged) {
-    debugPrint('[SheetCoordinator] Resetting tag sheet height from: $_tagSheetHeight');
+    debugPrint(
+      '[SheetCoordinator] Resetting tag sheet height from: $_tagSheetHeight',
+    );
     _tagSheetHeight = 0.0;
     onStateChanged();
   }
@@ -263,12 +337,15 @@ class SheetCoordinator {
   /// Restore the follow-me mode that was active before opening a node sheet
   void _restoreFollowMeMode(AppState appState) {
     if (_followMeModeBeforeSheet != null) {
-      debugPrint('[SheetCoordinator] Restoring follow-me mode: $_followMeModeBeforeSheet');
+      debugPrint(
+        '[SheetCoordinator] Restoring follow-me mode: $_followMeModeBeforeSheet',
+      );
       appState.setFollowMeMode(_followMeModeBeforeSheet!);
       _followMeModeBeforeSheet = null; // Clear stored state
     }
   }
 
   /// Check if any node editing/viewing sheet is currently open
-  bool get hasActiveNodeSheet => _addSheetHeight > 0 || _editSheetHeight > 0 || _tagSheetHeight > 0;
+  bool get hasActiveNodeSheet =>
+      _addSheetHeight > 0 || _editSheetHeight > 0 || _tagSheetHeight > 0;
 }

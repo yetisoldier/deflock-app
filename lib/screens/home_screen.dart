@@ -37,18 +37,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final GlobalKey<MapViewState> _mapViewKey = GlobalKey<MapViewState>();
   late final AnimatedMapController _mapController;
-  
+
   // Coordinators for managing different aspects of the home screen
   late final SheetCoordinator _sheetCoordinator;
   late final NavigationCoordinator _navigationCoordinator;
   late final MapInteractionHandler _mapInteractionHandler;
-  
+
   // Track node limit state for button disabling
   bool _isNodeLimitActive = false;
-  
+
   // Track selected node for highlighting
   int? _selectedNodeId;
-  
+
   // Track popup display to avoid showing multiple times
   bool _hasCheckedForPopup = false;
 
@@ -113,10 +113,75 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _openNextCydCandidate() {
+    if (_sheetCoordinator.hasActiveNodeSheet) return;
+
+    final appState = context.read<AppState>();
+    if (appState.cydPendingCandidates.isEmpty) return;
+
+    final candidate = appState.cydPendingCandidates.first;
+    final opened = appState.reviewCydCandidate(candidate.id);
+    if (!opened) return;
+
+    final target = appState.session?.target ?? candidate.initialLocation;
+    try {
+      _mapController.animateTo(
+        dest: target,
+        zoom: _mapController.mapController.camera.zoom < 17
+            ? 17
+            : _mapController.mapController.camera.zoom,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOut,
+      );
+    } catch (_) {
+      try {
+        _mapController.mapController.move(target, 17);
+      } catch (_) {
+        // Controller not ready; the add sheet can still open.
+      }
+    }
+
+    _sheetCoordinator.openExistingAddNodeSheet(
+      context: context,
+      scaffoldKey: _scaffoldKey,
+      onStateChanged: () => setState(() {}),
+    );
+  }
+
+  Future<void> _toggleCydBluetooth() async {
+    final appState = context.read<AppState>();
+    if (appState.cydBluetoothConnected) {
+      await appState.disconnectCydBluetooth();
+      return;
+    }
+
+    final connected = await appState.connectCydBluetooth();
+    if (!mounted || connected) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(appState.cydBluetoothError ?? 'Could not connect to CYD'),
+      ),
+    );
+  }
+
+  Future<void> _simulateCydDetection() async {
+    final appState = context.read<AppState>();
+    final sent = await appState.simulateCydDetection();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          sent ? 'CYD test detection requested' : 'CYD is not connected',
+        ),
+      ),
+    );
+  }
+
   void _openEditNodeSheet() {
     // Set transition flag BEFORE closing tag sheet to prevent map bounce
     _sheetCoordinator.setTransitioningToEdit(true);
-    
+
     // Close any existing tag sheet first
     if (_sheetCoordinator.tagSheetHeight > 0) {
       Navigator.of(context).pop();
@@ -125,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // Small delay to let tag sheet close smoothly
     Future.delayed(const Duration(milliseconds: 150), () {
       if (!mounted) return;
-      
+
       _sheetCoordinator.openEditNodeSheet(
         context: context,
         scaffoldKey: _scaffoldKey,
@@ -133,7 +198,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         onStateChanged: () {
           setState(() {
             // Clear tag sheet height and selected node when transitioning
-            if (_sheetCoordinator.editSheetHeight > 0 && _sheetCoordinator.transitioningToEdit) {
+            if (_sheetCoordinator.editSheetHeight > 0 &&
+                _sheetCoordinator.transitioningToEdit) {
               _sheetCoordinator.resetTagSheetHeight(() {});
               _selectedNodeId = null; // Clear selection when moving to edit
             }
@@ -156,23 +222,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Request location permission on first launch
   Future<void> _requestLocationPermissionIfFirstLaunch() async {
     if (!mounted) return;
-    
+
     try {
       // Only request on first launch or if user has never seen welcome
       final isFirstLaunch = await ChangelogService().isFirstLaunch();
       final hasSeenWelcome = await ChangelogService().hasSeenWelcome();
-      
+
       if (isFirstLaunch || !hasSeenWelcome) {
         // Check if location services are enabled
         bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
         if (!serviceEnabled) {
-          debugPrint('[HomeScreen] Location services disabled - skipping permission request');
+          debugPrint(
+            '[HomeScreen] Location services disabled - skipping permission request',
+          );
           return;
         }
 
         // Request location permission (this will show system dialog if needed)
         final permission = await Geolocator.requestPermission();
-        debugPrint('[HomeScreen] First launch location permission result: $permission');
+        debugPrint(
+          '[HomeScreen] First launch location permission result: $permission',
+        );
       }
     } catch (e) {
       // Silently handle errors to avoid breaking the app launch
@@ -183,22 +253,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Check for and display welcome/changelog popup
   Future<void> _checkForPopup() async {
     if (!mounted) return;
-    
+
     try {
       final appState = context.read<AppState>();
-      
+
       // Run any needed migrations first
-      final versionsNeedingMigration = await ChangelogService().getVersionsNeedingMigration();
+      final versionsNeedingMigration = await ChangelogService()
+          .getVersionsNeedingMigration();
       if (!mounted) return;
       for (final version in versionsNeedingMigration) {
         await ChangelogService().runMigration(version, appState, context);
       }
-      
+
       // Determine what popup to show
       final popupType = await ChangelogService().getPopupType();
-      
+
       if (!mounted) return; // Check again after async operation
-      
+
       switch (popupType) {
         case PopupType.welcome:
           await showDialog(
@@ -206,36 +277,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             barrierDismissible: false,
             builder: (context) => const WelcomeDialog(),
           );
-          
+
           // Request location permission right after welcome dialog on first launch
           if (!mounted) return;
           await _requestLocationPermissionIfFirstLaunch();
           break;
-        
+
         case PopupType.changelog:
-          final changelogContent = await ChangelogService().getChangelogContentForDisplay();
+          final changelogContent = await ChangelogService()
+              .getChangelogContentForDisplay();
           if (!mounted) return;
           if (changelogContent != null) {
             await showDialog(
               context: context,
               barrierDismissible: false,
-              builder: (context) => ChangelogDialog(changelogContent: changelogContent),
+              builder: (context) =>
+                  ChangelogDialog(changelogContent: changelogContent),
             );
           }
           break;
-        
+
         case PopupType.none:
           // No popup needed
           break;
       }
-      
+
       // Complete the version change workflow (updates last seen version)
       await ChangelogService().completeVersionChange();
-      
     } catch (e) {
       // Silently handle errors to avoid breaking the app launch
       debugPrint('[HomeScreen] Error checking for popup: $e');
-      
+
       // Still complete version change to avoid getting stuck
       try {
         await ChangelogService().completeVersionChange();
@@ -252,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       mapViewKey: _mapViewKey,
     );
   }
-  
+
   void _onResumeRoute() {
     _navigationCoordinator.resumeRoute(
       context: context,
@@ -260,12 +332,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       mapViewKey: _mapViewKey,
     );
   }
-  
-
 
   void _onNavigationButtonPressed() {
     final appState = context.read<AppState>();
-    
+
     if (appState.showRouteButton) {
       // Route button - show route overview and zoom to show route
       appState.showRouteOverview();
@@ -296,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       debugPrint('[HomeScreen] Long press ignored - tag sheet is open');
       return;
     }
-    
+
     _mapInteractionHandler.handleMapLongPress(
       context: context,
       tapLocation: location,
@@ -336,7 +406,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final controller = _scaffoldKey.currentState!.showBottomSheet(
       (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom, // Only safe area, no keyboard
+          bottom: MediaQuery.of(
+            context,
+          ).padding.bottom, // Only safe area, no keyboard
         ),
         child: MeasuredSheet(
           onHeightChanged: (height) {
@@ -355,14 +427,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                      LocalizationService.instance.t('editNode.zoomInRequiredMessage', 
-                        params: [kMinZoomForNodeEditingSheets.toString()])
+                      LocalizationService.instance.t(
+                        'editNode.zoomInRequiredMessage',
+                        params: [kMinZoomForNodeEditingSheets.toString()],
+                      ),
                     ),
                   ),
                 );
                 return;
               }
-              
+
               final appState = context.read<AppState>();
               appState.startEditSession(node);
               // This will trigger _openEditNodeSheet via the existing auto-show logic
@@ -371,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
-    
+
     // Reset height and selection when sheet is dismissed (unless transitioning to edit)
     controller.closed.then((_) {
       if (!_sheetCoordinator.transitioningToEdit) {
@@ -393,7 +467,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final controller = _scaffoldKey.currentState!.showBottomSheet(
       (ctx) => Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).padding.bottom, // Only safe area, no keyboard
+          bottom: MediaQuery.of(
+            context,
+          ).padding.bottom, // Only safe area, no keyboard
         ),
         child: MeasuredSheet(
           onHeightChanged: (height) {
@@ -406,7 +482,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
-    
+
     // Reset height and clear selection when sheet is dismissed
     final appState = context.read<AppState>();
     controller.closed.then((_) {
@@ -430,11 +506,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
     // Auto-open navigation sheet when needed - only when online and in nav features mode
     if (kEnableNavigationFeatures) {
-      final shouldShowNavSheet = !appState.offlineMode && (appState.isInSearchMode || appState.showingOverview);
+      final shouldShowNavSheet =
+          !appState.offlineMode &&
+          (appState.isInSearchMode || appState.showingOverview);
       if (shouldShowNavSheet && !_sheetCoordinator.navigationSheetShown) {
         _sheetCoordinator.setNavigationSheetShown(true);
-        WidgetsBinding.instance.addPostFrameCallback((_) => _openNavigationSheet());
-      } else if (!shouldShowNavSheet && _sheetCoordinator.navigationSheetShown) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _openNavigationSheet(),
+        );
+      } else if (!shouldShowNavSheet &&
+          _sheetCoordinator.navigationSheetShown) {
         _sheetCoordinator.setNavigationSheetShown(false);
         // When sheet should close (including going offline), clean up navigation state
         if (appState.offlineMode) {
@@ -471,13 +552,76 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           actions: [
             IconButton(
+              tooltip: appState.cydBluetoothConnected
+                  ? 'Disconnect CYD'
+                  : 'Connect CYD',
+              icon: Icon(
+                appState.cydBluetoothConnecting
+                    ? Icons.bluetooth_searching
+                    : Icons.bluetooth,
+                color: appState.cydBluetoothConnected
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              onPressed: appState.cydBluetoothConnecting
+                  ? null
+                  : _toggleCydBluetooth,
+            ),
+            if (appState.cydBluetoothConnected)
+              IconButton(
+                tooltip: 'Simulate CYD detection',
+                icon: const Icon(Icons.science),
+                onPressed: _simulateCydDetection,
+              ),
+            if (appState.cydPendingCount > 0)
+              IconButton(
+                tooltip: 'Review CYD detection',
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.sensors),
+                    Positioned(
+                      right: -5,
+                      top: -5,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.error,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          appState.cydPendingCount.toString(),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                onPressed: _sheetCoordinator.hasActiveNodeSheet
+                    ? null
+                    : _openNextCydCandidate,
+              ),
+            IconButton(
               tooltip: _getFollowMeTooltip(appState.followMeMode),
               icon: Icon(_getFollowMeIcon(appState.followMeMode)),
-              onPressed: (_mapViewKey.currentState?.hasLocation == true && !_sheetCoordinator.hasActiveNodeSheet)
+              onPressed:
+                  (_mapViewKey.currentState?.hasLocation == true &&
+                      !_sheetCoordinator.hasActiveNodeSheet)
                   ? () {
                       final oldMode = appState.followMeMode;
                       final newMode = _getNextFollowMeMode(oldMode);
-                      debugPrint('[HomeScreen] Follow mode changed: $oldMode → $newMode');
+                      debugPrint(
+                        '[HomeScreen] Follow mode changed: $oldMode → $newMode',
+                      );
                       appState.setFollowMeMode(newMode);
                       // If enabling follow-me, retry location init in case permission was granted
                       if (newMode != FollowMeMode.off) {
@@ -543,21 +687,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 if (_sheetCoordinator.tagSheetHeight == 0) {
                   _mapInteractionHandler.handleUserGesture(
                     context: context,
-                    onSelectedNodeChanged: (id) => setState(() => _selectedNodeId = id),
+                    onSelectedNodeChanged: (id) =>
+                        setState(() => _selectedNodeId = id),
                   );
                 } else {
                   // Tag sheet is open - only handle suspected location clearing, not node selection
                   final appState = context.read<AppState>();
                   appState.clearSuspectedLocationSelection();
                 }
-                
+
                 if (appState.followMeMode != FollowMeMode.off) {
                   appState.setFollowMeMode(FollowMeMode.off);
                 }
               },
             ),
             // Search bar (slides in when in search mode)
-            if (appState.isInSearchMode) 
+            if (appState.isInSearchMode)
               Positioned(
                 top: 0,
                 left: 0,
@@ -580,36 +725,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       right: rightPositionWithSafeArea(8, safeArea),
                     ),
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 600), // Match typical sheet width
+                      constraints: const BoxConstraints(
+                        maxWidth: 600,
+                      ), // Match typical sheet width
                       child: Container(
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surface,
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Theme.of(context).shadowColor.withValues(alpha: 0.3),
+                              color: Theme.of(
+                                context,
+                              ).shadowColor.withValues(alpha: 0.3),
                               blurRadius: 10,
                               offset: Offset(0, -2),
-                            )
+                            ),
                           ],
                         ),
                         margin: EdgeInsets.only(bottom: kBottomButtonBarOffset),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         child: Row(
                           children: [
                             Expanded(
                               flex: 7, // 70% for primary action
                               child: AnimatedBuilder(
                                 animation: LocalizationService.instance,
-                                builder: (context, child) => ElevatedButton.icon(
-                                  icon: Icon(Icons.add_location_alt),
-                                  label: Text(LocalizationService.instance.tagNode),
-                                  onPressed: _openAddNodeSheet,
-                                  style: ElevatedButton.styleFrom(
-                                    minimumSize: Size(0, 48),
-                                    textStyle: TextStyle(fontSize: 16),
-                                  ),
-                                ),
+                                builder: (context, child) =>
+                                    ElevatedButton.icon(
+                                      icon: Icon(Icons.add_location_alt),
+                                      label: Text(
+                                        LocalizationService.instance.tagNode,
+                                      ),
+                                      onPressed: _openAddNodeSheet,
+                                      style: ElevatedButton.styleFrom(
+                                        minimumSize: Size(0, 48),
+                                        textStyle: TextStyle(fontSize: 16),
+                                      ),
+                                    ),
                               ),
                             ),
                             SizedBox(width: 12),
@@ -619,32 +774,55 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 animation: LocalizationService.instance,
                                 builder: (context, child) {
                                   final appState = context.watch<AppState>();
-                                  final canDownload = appState.selectedTileType?.allowsOfflineDownload ?? false;
+                                  final canDownload =
+                                      appState
+                                          .selectedTileType
+                                          ?.allowsOfflineDownload ??
+                                      false;
                                   return FittedBox(
                                     fit: BoxFit.scaleDown,
                                     child: ElevatedButton.icon(
                                       icon: Icon(Icons.download_for_offline),
-                                      label: Text(LocalizationService.instance.download),
-                                      onPressed: canDownload ? () {
-                                        // Check minimum zoom level before opening download dialog
-                                        final currentZoom = _mapController.mapController.camera.zoom;
-                                        if (currentZoom < kMinZoomForOfflineDownload) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                LocalizationService.instance.t('download.areaTooBigMessage',
-                                                  params: [kMinZoomForOfflineDownload.toString()])
-                                              ),
-                                            ),
-                                          );
-                                          return;
-                                        }
+                                      label: Text(
+                                        LocalizationService.instance.download,
+                                      ),
+                                      onPressed: canDownload
+                                          ? () {
+                                              // Check minimum zoom level before opening download dialog
+                                              final currentZoom = _mapController
+                                                  .mapController
+                                                  .camera
+                                                  .zoom;
+                                              if (currentZoom <
+                                                  kMinZoomForOfflineDownload) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      LocalizationService.instance.t(
+                                                        'download.areaTooBigMessage',
+                                                        params: [
+                                                          kMinZoomForOfflineDownload
+                                                              .toString(),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                                return;
+                                              }
 
-                                        showDialog(
-                                          context: context,
-                                          builder: (ctx) => DownloadAreaDialog(controller: _mapController.mapController),
-                                        );
-                                      } : null,
+                                              showDialog(
+                                                context: context,
+                                                builder: (ctx) =>
+                                                    DownloadAreaDialog(
+                                                      controller: _mapController
+                                                          .mapController,
+                                                    ),
+                                              );
+                                            }
+                                          : null,
                                       style: ElevatedButton.styleFrom(
                                         minimumSize: Size(0, 48),
                                         textStyle: TextStyle(fontSize: 16),
@@ -668,4 +846,3 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 }
-

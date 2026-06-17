@@ -65,8 +65,12 @@ class MapViewState extends State<MapView> {
   late final AnimatedMapController _controller;
   final Debouncer _cameraDebounce = Debouncer(kDebounceCameraRefresh);
   final Debouncer _tileDebounce = Debouncer(const Duration(milliseconds: 150));
-  final Debouncer _mapPositionDebounce = Debouncer(const Duration(milliseconds: 1000));
-  final Debouncer _constrainedNodeSnapBack = Debouncer(const Duration(milliseconds: 100));
+  final Debouncer _mapPositionDebounce = Debouncer(
+    const Duration(milliseconds: 1000),
+  );
+  final Debouncer _constrainedNodeSnapBack = Debouncer(
+    const Duration(milliseconds: 100),
+  );
 
   late final MapPositionManager _positionManager;
   late final TileLayerManager _tileManager;
@@ -74,19 +78,19 @@ class MapViewState extends State<MapView> {
   late final GpsController _gpsController;
   late final MapDataManager _dataManager;
   late final MapInteractionManager _interactionManager;
-  
+
   // Track zoom to clear queue on zoom changes
   double? _lastZoom;
-  
+
   // Track map center to clear queue on significant panning
   LatLng? _lastCenter;
-  
+
   // State for proximity alert banner
   bool _showProximityBanner = false;
 
   // Track active pointers to suppress follow-me animations during touch
   int _activePointers = 0;
-  
+
   bool _isWakelockEnabled = false;
 
   void _updateWakelock(bool shouldBeAwake) {
@@ -115,7 +119,7 @@ class MapViewState extends State<MapView> {
     _gpsController = GpsController();
     _dataManager = MapDataManager();
     _interactionManager = MapInteractionManager();
-    
+
     // Initialize proximity alert service
     ProximityAlertService().initialize(
       onVisualAlert: () {
@@ -126,7 +130,7 @@ class MapViewState extends State<MapView> {
         }
       },
     );
-    
+
     // Load last map position before initializing GPS
     _positionManager.loadLastMapPosition().then((_) {
       // Move to last known position after loading and widget is built
@@ -134,13 +138,14 @@ class MapViewState extends State<MapView> {
         _positionManager.moveToInitialLocationIfNeeded(_controller);
       });
     });
-    
+
     // Initialize GPS with callback for position updates and follow-me
     _gpsController.initialize(
       mapController: _controller,
       onLocationUpdated: () {
         setState(() {});
-        widget.onLocationStatusChanged?.call(); // Notify parent about location status change
+        widget.onLocationStatusChanged
+            ?.call(); // Notify parent about location status change
       },
       getCurrentFollowMeMode: () {
         // Use mounted check to avoid calling context when widget is disposed
@@ -148,7 +153,9 @@ class MapViewState extends State<MapView> {
           try {
             return context.read<AppState>().followMeMode;
           } catch (e) {
-            debugPrint('[MapView] Could not read AppState, defaulting to off: $e');
+            debugPrint(
+              '[MapView] Could not read AppState, defaulting to off: $e',
+            );
             return FollowMeMode.off;
           }
         }
@@ -185,7 +192,9 @@ class MapViewState extends State<MapView> {
             } catch (_) {
               return [];
             }
-            return NodeProviderWithCache.instance.getCachedNodesForBounds(mapBounds);
+            return NodeProviderWithCache.instance.getCachedNodesForBounds(
+              mapBounds,
+            );
           } catch (e) {
             debugPrint('[MapView] Could not get nearby nodes: $e');
             return [];
@@ -204,6 +213,17 @@ class MapViewState extends State<MapView> {
         }
         return [];
       },
+      onPositionForCyd: (position) {
+        if (!mounted) return;
+        final heading = position.heading.isNaN ? 0.0 : position.heading;
+        context.read<AppState>().sendCydPhoneGps(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          accuracyMeters: position.accuracy,
+          speedKmph: position.speed * 3.6,
+          courseDegrees: heading,
+        );
+      },
       onMapMovedProgrammatically: () {
         // Refresh nodes when GPS controller moves the map
         _refreshNodesFromProvider();
@@ -216,10 +236,6 @@ class MapViewState extends State<MapView> {
       _refreshNodesFromProvider();
     });
   }
-
-
-
-
 
   @override
   void dispose() {
@@ -234,8 +250,6 @@ class MapViewState extends State<MapView> {
     super.dispose();
   }
 
-
-
   void _onNodesUpdated() {
     if (mounted) setState(() {});
   }
@@ -244,21 +258,18 @@ class MapViewState extends State<MapView> {
   void retryLocationInit() {
     _gpsController.retryLocationInit();
   }
-  
+
   /// Get current user location
   LatLng? getUserLocation() {
     return _gpsController.currentLocation;
   }
-  
+
   /// Whether we currently have a valid GPS location
   bool get hasLocation => _gpsController.hasLocation;
 
   /// Expose static methods from MapPositionManager for external access
-  static Future<void> clearStoredMapPosition() => 
+  static Future<void> clearStoredMapPosition() =>
       MapPositionManager.clearStoredMapPosition();
-
-
-
 
   void _refreshNodesFromProvider() {
     final appState = context.read<AppState>();
@@ -275,7 +286,6 @@ class MapViewState extends State<MapView> {
     return (!appState.offlineMode && appState.isInSearchMode) ? 60.0 : 0.0;
   }
 
-
   @override
   void didUpdateWidget(covariant MapView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -287,7 +297,6 @@ class MapViewState extends State<MapView> {
       );
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -318,9 +327,11 @@ class MapViewState extends State<MapView> {
         WidgetsBinding.instance.addPostFrameCallback(
           (_) => appState.updateSession(target: center),
         );
-      } catch (_) {/* controller not ready yet */}
+      } catch (_) {
+        /* controller not ready yet */
+      }
     }
-    
+
     // Check for pending snap backs (when extract checkbox is unchecked)
     final snapBackTarget = appState.consumePendingSnapBack();
     if (snapBackTarget != null) {
@@ -333,10 +344,10 @@ class MapViewState extends State<MapView> {
         );
       });
     }
-    
+
     // Edit sessions don't need to center - we're already centered from the node tap
     // SheetAwareMap handles the visual positioning
-    
+
     // Get current zoom level and map bounds (shared by all logic)
     double currentZoom = 15.0; // fallback
     LatLngBounds? mapBounds;
@@ -347,7 +358,7 @@ class MapViewState extends State<MapView> {
       // Controller not ready yet, use fallback values
       mapBounds = null;
     }
-    
+
     // Get node data using the data manager
     final nodeData = _dataManager.getNodesForRendering(
       currentZoom: currentZoom,
@@ -356,11 +367,10 @@ class MapViewState extends State<MapView> {
       maxNodes: appState.maxNodes,
       onNodeLimitChanged: widget.onNodeLimitChanged,
     );
-    
+
     // Build camera layers using the limited nodes
     Widget cameraLayers = LayoutBuilder(
       builder: (context, constraints) {
-        
         // Build all marker layers
         final markerLayer = MarkerLayerBuilder.buildMarkerLayers(
           nodesToRender: nodeData.nodesToRender,
@@ -386,12 +396,7 @@ class MapViewState extends State<MapView> {
           context: context,
         );
 
-        return Stack(
-          children: [
-            ...overlayLayers,
-            markerLayer,
-          ],
-        );
+        return Stack(children: [...overlayLayers, markerLayer]);
       },
     );
 
@@ -411,121 +416,151 @@ class MapViewState extends State<MapView> {
               if (_activePointers > 0) _activePointers--;
             },
             child: FlutterMap(
-              key: ValueKey('map_${appState.selectedTileProvider?.id ?? 'none'}_${appState.selectedTileType?.id ?? 'none'}_${appState.offlineMode}_${_tileManager.mapRebuildKey}'),
+              key: ValueKey(
+                'map_${appState.selectedTileProvider?.id ?? 'none'}_${appState.selectedTileType?.id ?? 'none'}_${appState.offlineMode}_${_tileManager.mapRebuildKey}',
+              ),
               mapController: _controller.mapController,
               options: MapOptions(
-              initialCenter: _gpsController.currentLocation ?? _positionManager.initialLocation ?? LatLng(37.7749, -122.4194),
-            initialZoom: _positionManager.initialZoom ?? 15,
-            minZoom: 1.0,
-            maxZoom: (appState.selectedTileType?.maxZoom ?? 18).toDouble(),
-            interactionOptions: _interactionManager.getInteractionOptions(editSession),
-            onPositionChanged: (pos, gesture) {
-              setState(() {}); // Instant UI update for zoom, etc.
-              if (gesture) {
-                widget.onUserGesture();
-              }
-              
-              // Enforce minimum zoom level for add/edit node sheets (but not tag sheet)
-              if ((session != null || editSession != null) && pos.zoom < kMinZoomForNodeEditingSheets) {
-                // User tried to zoom out below minimum - snap back to minimum zoom
-                _controller.animateTo(
-                  dest: pos.center,
-                  zoom: kMinZoomForNodeEditingSheets.toDouble(),
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                );
-                return; // Don't process other position updates
-              }
-              
-              if (session != null) {
-                appState.updateSession(target: pos.center);
-              }
-              if (editSession != null) {
-                // For constrained nodes that are not being extracted, always snap back to original position
-                if (editSession.originalNode.isConstrained && !editSession.extractFromWay) {
-                  final originalPos = editSession.originalNode.coord;
-                  
-                  // Always keep session target as original position
-                  appState.updateEditSession(target: originalPos);
-                  
-                  // Only snap back if position actually drifted, and debounce to wait for gesture completion
-                  if (pos.center.latitude != originalPos.latitude || pos.center.longitude != originalPos.longitude) {
-                    _constrainedNodeSnapBack(() {
-                      // Only animate if we're still in a constrained edit session and still drifted
-                      final currentEditSession = appState.editSession;
-                      if (currentEditSession?.originalNode.isConstrained == true && currentEditSession?.extractFromWay != true) {
-                        final currentPos = _controller.mapController.camera.center;
-                        if (currentPos.latitude != originalPos.latitude || currentPos.longitude != originalPos.longitude) {
-                          _controller.animateTo(
-                            dest: originalPos,
-                            zoom: _controller.mapController.camera.zoom,
-                            curve: Curves.easeOut,
-                            duration: const Duration(milliseconds: 250),
-                          );
-                        }
+                initialCenter:
+                    _gpsController.currentLocation ??
+                    _positionManager.initialLocation ??
+                    LatLng(37.7749, -122.4194),
+                initialZoom: _positionManager.initialZoom ?? 15,
+                minZoom: 1.0,
+                maxZoom: (appState.selectedTileType?.maxZoom ?? 18).toDouble(),
+                interactionOptions: _interactionManager.getInteractionOptions(
+                  editSession,
+                ),
+                onPositionChanged: (pos, gesture) {
+                  setState(() {}); // Instant UI update for zoom, etc.
+                  if (gesture) {
+                    widget.onUserGesture();
+                  }
+
+                  // Enforce minimum zoom level for add/edit node sheets (but not tag sheet)
+                  if ((session != null || editSession != null) &&
+                      pos.zoom < kMinZoomForNodeEditingSheets) {
+                    // User tried to zoom out below minimum - snap back to minimum zoom
+                    _controller.animateTo(
+                      dest: pos.center,
+                      zoom: kMinZoomForNodeEditingSheets.toDouble(),
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                    );
+                    return; // Don't process other position updates
+                  }
+
+                  if (session != null) {
+                    appState.updateSession(target: pos.center);
+                  }
+                  if (editSession != null) {
+                    // For constrained nodes that are not being extracted, always snap back to original position
+                    if (editSession.originalNode.isConstrained &&
+                        !editSession.extractFromWay) {
+                      final originalPos = editSession.originalNode.coord;
+
+                      // Always keep session target as original position
+                      appState.updateEditSession(target: originalPos);
+
+                      // Only snap back if position actually drifted, and debounce to wait for gesture completion
+                      if (pos.center.latitude != originalPos.latitude ||
+                          pos.center.longitude != originalPos.longitude) {
+                        _constrainedNodeSnapBack(() {
+                          // Only animate if we're still in a constrained edit session and still drifted
+                          final currentEditSession = appState.editSession;
+                          if (currentEditSession?.originalNode.isConstrained ==
+                                  true &&
+                              currentEditSession?.extractFromWay != true) {
+                            final currentPos =
+                                _controller.mapController.camera.center;
+                            if (currentPos.latitude != originalPos.latitude ||
+                                currentPos.longitude != originalPos.longitude) {
+                              _controller.animateTo(
+                                dest: originalPos,
+                                zoom: _controller.mapController.camera.zoom,
+                                curve: Curves.easeOut,
+                                duration: const Duration(milliseconds: 250),
+                              );
+                            }
+                          }
+                        });
+                      }
+                    } else {
+                      // Normal unconstrained node - allow position updates
+                      appState.updateEditSession(target: pos.center);
+                    }
+                  }
+
+                  // Update provisional pin location during navigation search/routing
+                  if (appState.showProvisionalPin) {
+                    appState.updateProvisionalPinLocation(pos.center);
+                  }
+
+                  // Clear tile queue on tile level changes OR significant panning
+                  final currentZoom = pos.zoom;
+                  final currentCenter = pos.center;
+                  final currentTileLevel = currentZoom.round();
+                  final lastTileLevel = _lastZoom?.round();
+                  final tileLevelChanged =
+                      lastTileLevel != null &&
+                      currentTileLevel != lastTileLevel;
+                  final centerMoved = _interactionManager.mapMovedSignificantly(
+                    currentCenter,
+                    _lastCenter,
+                  );
+
+                  if (tileLevelChanged || centerMoved) {
+                    _tileDebounce(() {
+                      // Use selective clearing to only cancel tiles that are no longer visible
+                      try {
+                        final currentBounds =
+                            _controller.mapController.camera.visibleBounds;
+                        _tileManager.clearStaleRequests(
+                          currentBounds: currentBounds,
+                        );
+                      } catch (e) {
+                        // Fallback to clearing all if bounds calculation fails
+                        debugPrint(
+                          '[MapView] Could not get current bounds for selective clearing: $e',
+                        );
+                        _tileManager.clearTileQueueImmediate();
                       }
                     });
                   }
-                } else {
-                  // Normal unconstrained node - allow position updates
-                  appState.updateEditSession(target: pos.center);
-                }
-              }
-              
-              // Update provisional pin location during navigation search/routing
-              if (appState.showProvisionalPin) {
-                appState.updateProvisionalPinLocation(pos.center);
-              }
-              
-              // Clear tile queue on tile level changes OR significant panning
-              final currentZoom = pos.zoom;
-              final currentCenter = pos.center;
-              final currentTileLevel = currentZoom.round();
-              final lastTileLevel = _lastZoom?.round();
-              final tileLevelChanged = lastTileLevel != null && currentTileLevel != lastTileLevel;
-              final centerMoved = _interactionManager.mapMovedSignificantly(currentCenter, _lastCenter);
-              
-              if (tileLevelChanged || centerMoved) {
-                _tileDebounce(() {
-                  // Use selective clearing to only cancel tiles that are no longer visible
-                  try {
-                    final currentBounds = _controller.mapController.camera.visibleBounds;
-                    _tileManager.clearStaleRequests(currentBounds: currentBounds);
-                  } catch (e) {
-                    // Fallback to clearing all if bounds calculation fails
-                    debugPrint('[MapView] Could not get current bounds for selective clearing: $e');
-                    _tileManager.clearTileQueueImmediate();
+                  _lastZoom = currentZoom;
+                  _lastCenter = currentCenter;
+
+                  // Save map position (debounced to avoid excessive writes)
+                  _mapPositionDebounce(() {
+                    _positionManager.saveMapPosition(pos.center, pos.zoom);
+                  });
+
+                  // Request more nodes on any map movement/zoom at valid zoom level (slower debounce)
+                  final minZoom = _dataManager.getMinZoomForNodes(
+                    appState.uploadMode,
+                  );
+                  if (pos.zoom >= minZoom) {
+                    _cameraDebounce(_refreshNodesFromProvider);
+                  } else {
+                    // Skip nodes at low zoom - no loading state needed
+                    // Show zoom warning if needed
+                    _dataManager.showZoomWarningIfNeeded(
+                      context,
+                      pos.zoom,
+                      appState.uploadMode,
+                    );
                   }
-                });
-              }
-              _lastZoom = currentZoom;
-              _lastCenter = currentCenter;
-              
-              // Save map position (debounced to avoid excessive writes)
-              _mapPositionDebounce(() {
-                _positionManager.saveMapPosition(pos.center, pos.zoom);
-              });
-              
-              // Request more nodes on any map movement/zoom at valid zoom level (slower debounce)
-              final minZoom = _dataManager.getMinZoomForNodes(appState.uploadMode);
-              if (pos.zoom >= minZoom) {
-                _cameraDebounce(_refreshNodesFromProvider);
-              } else {
-                // Skip nodes at low zoom - no loading state needed
-                // Show zoom warning if needed
-                _dataManager.showZoomWarningIfNeeded(context, pos.zoom, appState.uploadMode);
-              }
-            },
-            onTap: (tapPosition, point) {
-              // Handle tap on empty map area - currently no action needed
-              debugPrint('[MapView] Tap at: $point');
-            },
-            onLongPress: (tapPosition, point) {
-              // Handle long press on empty map area - add node here
-              debugPrint('[MapView] Long press at: $point');
-              widget.onMapLongPress?.call(point);
-            },
-            ),
+                },
+                onTap: (tapPosition, point) {
+                  // Handle tap on empty map area - currently no action needed
+                  debugPrint('[MapView] Tap at: $point');
+                },
+                onLongPress: (tapPosition, point) {
+                  // Handle long press on empty map area - add node here
+                  debugPrint('[MapView] Long press at: $point');
+                  widget.onMapLongPress?.call(point);
+                },
+              ),
               children: [
                 _tileManager.buildTileLayer(
                   selectedProvider: appState.selectedTileProvider,
@@ -540,7 +575,10 @@ class MapViewState extends State<MapView> {
                       alignment: Alignment.bottomLeft,
                       padding: EdgeInsets.only(
                         left: leftPositionWithSafeArea(8, safeArea),
-                        bottom: bottomPositionFromButtonBar(kScaleBarSpacingAboveButtonBar, safeArea.bottom),
+                        bottom: bottomPositionFromButtonBar(
+                          kScaleBarSpacingAboveButtonBar,
+                          safeArea.bottom,
+                        ),
                       ),
                       maxWidthPx: 120,
                       barHeight: 8,
@@ -566,8 +604,10 @@ class MapViewState extends State<MapView> {
         Builder(
           builder: (context) {
             final appState = context.watch<AppState>();
-            final searchBarOffset = _calculateScreenIndicatorSearchOffset(appState);
-            
+            final searchBarOffset = _calculateScreenIndicatorSearchOffset(
+              appState,
+            );
+
             return NodeLimitIndicator(
               isActive: nodeData.isLimitActive,
               renderedCount: nodeData.nodesToRender.length,
@@ -583,16 +623,20 @@ class MapViewState extends State<MapView> {
           Builder(
             builder: (context) {
               final appState = context.watch<AppState>();
-              final searchBarOffset = _calculateScreenIndicatorSearchOffset(appState);
-              final nodeLimitOffset = nodeData.isLimitActive ? 48.0 : 0.0; // Height of node limit indicator + spacing
-              
+              final searchBarOffset = _calculateScreenIndicatorSearchOffset(
+                appState,
+              );
+              final nodeLimitOffset = nodeData.isLimitActive
+                  ? 48.0
+                  : 0.0; // Height of node limit indicator + spacing
+
               return NetworkStatusIndicator(
                 top: 8.0 + searchBarOffset + nodeLimitOffset,
                 left: 8.0,
               );
             },
           ),
-        
+
         // Proximity alert banner (top)
         ProximityAlertBanner(
           isVisible: _showProximityBanner,
@@ -606,4 +650,3 @@ class MapViewState extends State<MapView> {
     );
   }
 }
-

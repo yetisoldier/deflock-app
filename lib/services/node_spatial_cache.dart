@@ -25,22 +25,27 @@ class NodeSpatialCache {
   void markAreaAsFetched(LatLngBounds bounds, List<OsmNode> nodes) {
     // Add the fetched area
     _fetchedAreas.add(CachedArea(bounds, DateTime.now()));
-    
+
     // Update nodes in cache
     for (final node in nodes) {
       _nodes[node.id] = node;
     }
-    
-    debugPrint('[NodeSpatialCache] Cached ${nodes.length} nodes for area ${bounds.south.toStringAsFixed(3)},${bounds.west.toStringAsFixed(3)} to ${bounds.north.toStringAsFixed(3)},${bounds.east.toStringAsFixed(3)}');
-    debugPrint('[NodeSpatialCache] Total areas cached: ${_fetchedAreas.length}, total nodes: ${_nodes.length}');
+
+    debugPrint(
+      '[NodeSpatialCache] Cached ${nodes.length} nodes for area ${bounds.south.toStringAsFixed(3)},${bounds.west.toStringAsFixed(3)} to ${bounds.north.toStringAsFixed(3)},${bounds.east.toStringAsFixed(3)}',
+    );
+    debugPrint(
+      '[NodeSpatialCache] Total areas cached: ${_fetchedAreas.length}, total nodes: ${_nodes.length}',
+    );
   }
 
   /// Get all cached nodes within the given bounds
   List<OsmNode> getNodesFor(LatLngBounds bounds) {
-    return _nodes.values
-        .where((node) => bounds.contains(node.coord))
-        .toList();
+    return _nodes.values.where((node) => bounds.contains(node.coord)).toList();
   }
+
+  /// Snapshot of every node currently cached in memory.
+  List<OsmNode> get allNodes => List.unmodifiable(_nodes.values);
 
   /// Add or update individual nodes (for upload queue integration)
   void addOrUpdateNodes(List<OsmNode> nodes) {
@@ -84,7 +89,7 @@ class NodeSpatialCache {
     if (node != null && node.tags.containsKey('_pending_edit')) {
       final cleanTags = Map<String, String>.from(node.tags);
       cleanTags.remove('_pending_edit');
-      
+
       _nodes[nodeId] = OsmNode(
         id: node.id,
         coord: node.coord,
@@ -100,7 +105,7 @@ class NodeSpatialCache {
     if (node != null && node.tags.containsKey('_pending_deletion')) {
       final cleanTags = Map<String, String>.from(node.tags);
       cleanTags.remove('_pending_deletion');
-      
+
       _nodes[nodeId] = OsmNode(
         id: node.id,
         coord: node.coord,
@@ -113,36 +118,46 @@ class NodeSpatialCache {
   /// Remove a specific temporary node by its ID
   void removeTempNodeById(int tempNodeId) {
     if (tempNodeId >= 0) {
-      debugPrint('[NodeSpatialCache] Warning: Attempted to remove non-temp node ID $tempNodeId');
+      debugPrint(
+        '[NodeSpatialCache] Warning: Attempted to remove non-temp node ID $tempNodeId',
+      );
       return;
     }
-    
+
     if (_nodes.remove(tempNodeId) != null) {
       debugPrint('[NodeSpatialCache] Removed temp node $tempNodeId from cache');
     }
   }
 
   /// Find nodes within distance of a coordinate (for proximity warnings)
-  List<OsmNode> findNodesWithinDistance(LatLng coord, double distanceMeters, {int? excludeNodeId}) {
+  List<OsmNode> findNodesWithinDistance(
+    LatLng coord,
+    double distanceMeters, {
+    int? excludeNodeId,
+  }) {
     final nearbyNodes = <OsmNode>[];
-    
+
     for (final node in _nodes.values) {
       // Skip the excluded node
       if (excludeNodeId != null && node.id == excludeNodeId) {
         continue;
       }
-      
+
       // Skip nodes marked for deletion
       if (node.tags.containsKey('_pending_deletion')) {
         continue;
       }
-      
-      final distanceInMeters = _distance.as(LengthUnit.Meter, coord, node.coord);
+
+      final distanceInMeters = _distance.as(
+        LengthUnit.Meter,
+        coord,
+        node.coord,
+      );
       if (distanceInMeters <= distanceMeters) {
         nearbyNodes.add(node);
       }
     }
-    
+
     return nearbyNodes;
   }
 
@@ -154,10 +169,8 @@ class NodeSpatialCache {
   }
 
   /// Get cache statistics for debugging
-  CacheStats get stats => CacheStats(
-    areasCount: _fetchedAreas.length,
-    nodesCount: _nodes.length,
-  );
+  CacheStats get stats =>
+      CacheStats(areasCount: _fetchedAreas.length, nodesCount: _nodes.length);
 }
 
 /// Represents an area that has been successfully fetched
@@ -183,8 +196,8 @@ class CacheStats {
 extension LatLngBoundsExtension on LatLngBounds {
   bool containsBounds(LatLngBounds other) {
     return north >= other.north &&
-           south <= other.south &&
-           east >= other.east &&
-           west <= other.west;
+        south <= other.south &&
+        east >= other.east &&
+        west <= other.west;
   }
 }
