@@ -8,10 +8,10 @@ This branch prepares DeFlock to consume detections from the CYD Flock-You firmwa
 2. DeFlock scans for the CYD Bluetooth LE UART device named `CYD-Flock-You`.
 3. DeFlock connects to the Nordic UART service and sends `FYHELLO`.
 3. CYD replies with `event:"pair_status"` and repeats status every 5 seconds.
-4. DeFlock streams phone GPS once per second using:
+4. DeFlock streams phone GPS once per second using the extended `FYGPS` format:
 
 ```text
-FYGPS,<lat>,<lon>,<accuracy_m>,<speed_kmph>,<course_deg>,<sats>,<hdop>
+FYGPS,<lat>,<lon>,<accuracy_m>,<speed_kmph>,<course_deg>,<sats>,<hdop>,<unix_time>,<utc_offset_min>
 ```
 
 5. CYD emits `event:"detection"` JSON when the WiFi detector sees a target signature.
@@ -52,6 +52,54 @@ FYGPS,<lat>,<lon>,<accuracy_m>,<speed_kmph>,<course_deg>,<sats>,<hdop>
   - opens the standard visual map-based add flow centered on the detected location
 - `MapView` / `GpsController`
   - forwards live phone GPS updates to the paired CYD as `FYGPS`
+  - smooths follow-me camera movement without smoothing the GPS stream sent to CYD
+
+## Current Firmware Expectations
+
+The companion branch expects the CYD firmware to expose:
+
+- BLE peripheral name `CYD-Flock-You`
+- Nordic UART service `6E400001-B5A3-F393-E0A9-E50E24DCCA9E`
+- `FYHELLO` / `FYSTATUS` pair status JSON
+- `FYGPS` phone GPS input
+- `FYSIM` synthetic detection trigger
+- `event:"detection"` JSON lines
+
+The latest `pair_status` payload can include RF diagnostics:
+
+- `scan_mode`
+- `channel`
+- `rx_frames`
+- `rx_mgmt`
+- `rx_data`
+- `queue_drops`
+
+These fields are for field triage and should not be required for basic pairing.
+
+## Follow-Me Smoothing Notes
+
+The app sends raw GPS to the CYD but uses motion-aware smoothing for the map camera. The current tuning lives in `lib/dev_config.dart`:
+
+- animation duration: 1200 milliseconds
+- minimum animation interval: 600 milliseconds
+- jitter floor: 4 meters
+- snap distance: 140 meters
+- slow alpha: 0.18
+- city driving alpha: 0.36
+- fast driving alpha: 0.52
+- heading alpha: 0.18
+- surveillance refresh: 8 seconds or 250 meters while following
+
+This is a UI comfort layer only. It should not change candidate coordinates or CYD GPS telemetry.
+
+## Field-Test Lessons
+
+- A field drive only counts if the app is connected first and shows the connected/disconnect CYD state.
+- The failed phone-powered OTG path was physical/OS enumeration, not app parsing.
+- BLE is the working field transport.
+- `FYSIM` proves the app/CYD review pipeline, not real RF detection.
+- If there are no hits during a real drive, inspect CYD `pair_status` receive counters before changing detection signatures.
+- Candidates must remain review-first. The app should never submit a CYD hit directly to OpenStreetMap.
 
 ## Still Needed
 

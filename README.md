@@ -6,6 +6,20 @@ A comprehensive Flutter app for mapping public surveillance infrastructure with 
 
 **For complete documentation, tutorials, and community info, visit [deflock.me](https://deflock.me)**
 
+## CYD Flock-You Companion Branch
+
+This branch adds Android companion support for the CYD Flock-You field sensor. The matching firmware repository is [`yetisoldier/CYD-Flock-You`](https://github.com/yetisoldier/CYD-Flock-You).
+
+Use these together:
+
+- Android companion: [`yetisoldier/deflock-app`, branch `cyd-flock-you-integration`](https://github.com/yetisoldier/deflock-app/tree/cyd-flock-you-integration)
+- CYD firmware: [`yetisoldier/CYD-Flock-You`](https://github.com/yetisoldier/CYD-Flock-You)
+- Firmware protocol notes: [`docs/deflock-pairing-protocol.md`](https://github.com/yetisoldier/CYD-Flock-You/blob/main/docs/deflock-pairing-protocol.md)
+
+The CYD scans passively for Flock-style 2.4 GHz Wi-Fi signatures. The app connects over Bluetooth LE, streams phone GPS to the CYD, receives detection events, suppresses likely duplicates, and opens the normal DeFlock review flow so the user can manually place the camera and set direction before any OpenStreetMap upload.
+
+This is public-beta companion work and is not part of upstream DeFlock releases yet.
+
 <a href="https://apps.apple.com/us/app/deflock-me/id6752760780" style="display: inline-block;">
 <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1695859200" alt="Download on the App Store" style="width: 246px; height: 82px; vertical-align: middle; object-fit: contain;" />
     </a>

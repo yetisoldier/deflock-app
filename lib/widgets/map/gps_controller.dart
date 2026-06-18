@@ -164,7 +164,7 @@ class GpsController {
     final followMeMode = _getCurrentFollowMeMode?.call() ?? FollowMeMode.off;
     final distanceFilter = followMeMode == FollowMeMode.off
         ? 5
-        : 1; // 5m normal, 1m follow-me
+        : 0; // 5m normal, freshest possible follow-me stream
 
     debugPrint(
       '[GpsController] Starting GPS position stream (${distanceFilter}m filter)',
@@ -176,7 +176,7 @@ class GpsController {
             ? AndroidSettings(
                 accuracy: LocationAccuracy.high,
                 distanceFilter: distanceFilter,
-                forceLocationManager: true,
+                intervalDuration: const Duration(seconds: 1),
               )
             : LocationSettings(
                 accuracy: LocationAccuracy.high,

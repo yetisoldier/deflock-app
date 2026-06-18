@@ -1,0 +1,9 @@
+{"event":"pair_status","device":"CYD-Flock-You","protocol_version":1,"features":["wifi_promisc","phone_gps","sd_csv","tft_status","ble_uart"],"gps":true,"sd":true,"detections":1,"csv_rows":1}
+[cyd] simulated detection mac=70:c9:4e:fa:ce:01 rssi=-42 ch=1
+{"event":"detection","detection_method":"wifi_wildcard_probe","protocol":"wifi_2_4ghz","mac_address":"70:c9:4e:fa:ce:01","oui":"70:c9:4e","device_name":"","rssi":-42,"channel":1,"frequency":2412,"ssid":"Flock-Test","gps":{"latitude":45.183956,"longitude":-93.221761,"accuracy":19.1,"age_ms":1202,"source":"phone"}}
+[flockyou] session saved: 2 det, 273 bytes, crc=0x8D3F2C41
+[flockyou] scanning (ch=6 mode=CUSTOM det=2)
+{"event":"pair_status","device":"CYD-Flock-You","protocol_version":1,"features":["wifi_promisc","phone_gps","sd_csv","tft_status","ble_uart"],"gps":true,"sd":true,"detections":2,"csv_rows":2}
+{"event":"pair_status","device":"CYD-Flock-You","protocol_version":1,"features":["wifi_promisc","phone_gps","sd_csv","tft_status","ble_uart"],"gps":true,"sd":true,"detections":2,"csv_rows":2}
+{"event":"pair_status","device":"CYD-Flock-You","protocol_version":1,"features":["wifi_promisc","phone_gps","sd_csv","tft_status","ble_uart"],"gps":true,"sd":true,"detections":2,"csv_rows":2}
+{"event":"pair_status","device":"CYD-Flock-You","protocol_version":1,"features":["wifi_promisc","phone_gps","sd_csv","tft_status","ble_uart"],"gps":true,"sd":true,"detections":2,"csv_rows":2}

@@ -84,6 +84,8 @@ class MapViewState extends State<MapView> {
 
   // Track map center to clear queue on significant panning
   LatLng? _lastCenter;
+  LatLng? _lastFollowMeRefreshCenter;
+  DateTime? _lastFollowMeRefreshAt;
 
   // State for proximity alert banner
   bool _showProximityBanner = false;
@@ -224,10 +226,7 @@ class MapViewState extends State<MapView> {
           courseDegrees: heading,
         );
       },
-      onMapMovedProgrammatically: () {
-        // Refresh nodes when GPS controller moves the map
-        _refreshNodesFromProvider();
-      },
+      onMapMovedProgrammatically: () {},
       isUserInteracting: () => _activePointers > 0,
     );
 
@@ -279,6 +278,24 @@ class MapViewState extends State<MapView> {
       uploadMode: appState.uploadMode,
       context: context,
     );
+  }
+
+  void _refreshNodesForFollowMe(LatLng center) {
+    final now = DateTime.now();
+    final lastAt = _lastFollowMeRefreshAt;
+    final lastCenter = _lastFollowMeRefreshCenter;
+    final timeElapsed =
+        lastAt == null || now.difference(lastAt) >= kFollowMeCameraRefresh;
+    final distanceElapsed =
+        lastCenter == null ||
+        const Distance()(lastCenter, center) >=
+            kFollowMeCameraRefreshDistanceMeters;
+
+    if (!timeElapsed && !distanceElapsed) return;
+
+    _lastFollowMeRefreshAt = now;
+    _lastFollowMeRefreshCenter = center;
+    _refreshNodesFromProvider();
   }
 
   /// Calculate search bar offset for screen-positioned indicators
@@ -540,7 +557,13 @@ class MapViewState extends State<MapView> {
                     appState.uploadMode,
                   );
                   if (pos.zoom >= minZoom) {
-                    _cameraDebounce(_refreshNodesFromProvider);
+                    final following =
+                        appState.followMeMode != FollowMeMode.off && !gesture;
+                    if (following) {
+                      _refreshNodesForFollowMe(pos.center);
+                    } else {
+                      _cameraDebounce(_refreshNodesFromProvider);
+                    }
                   } else {
                     // Skip nodes at low zoom - no loading state needed
                     // Show zoom warning if needed
