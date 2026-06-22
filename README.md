@@ -18,6 +18,13 @@ Use these together:
 
 The CYD scans passively for Flock-style 2.4 GHz Wi-Fi signatures. The app connects over Bluetooth LE, streams phone GPS to the CYD, receives detection events, suppresses likely duplicates, and opens the normal DeFlock review flow so the user can manually place the camera and set direction before any OpenStreetMap upload.
 
+### v2.11.0 Changes
+
+- **CYD Flock-You integration** — Full BLE connection, GPS streaming, and detection event handling
+- **Follow-me map smoothing** — Smooth follow-me map movement for a more fluid tracking experience
+- **Map jitter reduction** — Reduced map jitter during navigation for a cleaner visual experience
+- **CYD integration documentation** — Added docs for CYD companion device setup and usage
+
 This is public-beta companion work and is not part of upstream DeFlock releases yet.
 
 <a href="https://apps.apple.com/us/app/deflock-me/id6752760780" style="display: inline-block;">
